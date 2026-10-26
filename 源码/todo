@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Append a task to the locally installed 常在待办 application."""
+import argparse
+import datetime
+import pathlib
+import subprocess
+import sys
+import urllib.parse
+
+
+def valid_date(value):
+    try:
+        parsed = datetime.date.fromisoformat(value)
+        if parsed.isoformat() != value:
+            raise ValueError()
+    except ValueError:
+        raise argparse.ArgumentTypeError("日期须为有效的 YYYY-MM-DD，例如 2026-10-28")
+    return value
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="通过本地 URL 指令向常在待办添加任务；不连接云端或内置 AI。",
+        epilog="示例：./todo add '买咖啡' --category life --due 2026-10-28",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    add = commands.add_parser("add", help="添加一条待办")
+    add.add_argument("title", help="待办标题；含空格或特殊字符时请加引号")
+    add.add_argument("--category", default="work", help="分类，默认 work；不存在的分类会自动创建")
+    add.add_argument("--due", type=valid_date, help="截止日期 YYYY-MM-DD，按 Mac 当前时区解释")
+    add.add_argument("--print-url", action="store_true", help="仅输出 URL 供检查，不启动应用、不添加任务")
+    args = parser.parse_args()
+    title = args.title.strip()
+    category = args.category.strip() or "work"
+    if not title:
+        parser.error("待办标题不能为空")
+    if len(title) > 10000 or len(category) > 100:
+        parser.error("标题须不超过 10000 字，分类须不超过 100 字")
+    params = {"title": title, "category": category}
+    if args.due:
+        params["due"] = args.due
+    # URLComponents preserves literal '+'; encode spaces as %20 rather than '+'.
+    url = "ataglance://add?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+    if args.print_url:
+        print(url)
+        return 0
+    app = pathlib.Path(__file__).resolve().parent.parent / "常在待办.app"
+    if not app.is_dir():
+        parser.exit(1, "找不到常在待办.app，请先运行 build.sh，或将 todo 保留在交付目录的源码文件夹中。\n")
+    try:
+        subprocess.run(["/usr/bin/open", "-a", str(app), url], check=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        parser.exit(1, "无法打开常在待办：%s\n" % error)
+    print("已向常在待办发送：" + title)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

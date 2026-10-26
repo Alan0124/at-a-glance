@@ -1,0 +1,320 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T16:31:49.383494Z",
+  "title": "Design System: 常在待办",
+  "extensions": {
+    "native": {
+      "platform": "macOS",
+      "mode": "Operate",
+      "stack": "SwiftUI + AppKit",
+      "unit": "pt",
+      "source": "User-supplied Xiaohongshu video 6ad82106000000002b01e4be; observed facts in reference.md.",
+      "material": {
+        "api": "NSVisualEffectView",
+        "material": "popover",
+        "blendingMode": "behindWindow",
+        "state": "active",
+        "appearance": "aqua"
+      },
+      "systemControls": [
+        "SF Symbols",
+        "SwiftUI Form",
+        "Toggle",
+        "Picker",
+        "DatePicker",
+        "popover",
+        "NSMenu"
+      ],
+      "previewScope": "HTML/CSS snippets are documentation-only illustrations. The shipping app is native; snippets do not simulate AppKit glass, window shadow, dragging, hover fading, or full native control behavior.",
+      "rampsScope": "Generated OKLCH lightness ramps are metadata for the design viewer, not additional shipping UI colors. Frontmatter remains normative.",
+      "implementationEvidence": [
+        "Sources/Views.swift",
+        "Sources/AppMain.swift",
+        "Sources/Models.swift"
+      ],
+      "screenshots": [
+        ".impeccable/review/expanded.png",
+        ".impeccable/review/idle.png",
+        ".impeccable/review/compact.png",
+        ".impeccable/review/settings.png"
+      ],
+      "review": ".impeccable/review/review.md",
+      "verificationBoundary": "Expanded/idle screenshot pairs provide real evidence of the idle faded state. Exact fade timing and animation, pointer-entry recovery, optional automatic collapse, drag gestures, always-on-top/cross-screen behavior remain incompletely verified. Review verdict is recorded separately.",
+      "webDetector": "not applicable: no shipping Web UI"
+    },
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Graphite Ink / 石墨墨色",
+        "tonalRamp": [
+          "#0a0c0a",
+          "#232623",
+          "#404340",
+          "#5f625f",
+          "#808380",
+          "#a3a6a3",
+          "#c7cac7",
+          "#ecefec"
+        ]
+      },
+      "secondary-ink": {
+        "role": "neutral",
+        "displayName": "Secondary Ink / 浅石墨色",
+        "tonalRamp": [
+          "#0a0c08",
+          "#242622",
+          "#41433e",
+          "#60625d",
+          "#81837e",
+          "#a3a6a1",
+          "#c7cac5",
+          "#edf0ea"
+        ]
+      },
+      "completed-sage": {
+        "role": "primary",
+        "displayName": "Completed Sage / 完成鼠尾草绿",
+        "tonalRamp": [
+          "#001001",
+          "#162b17",
+          "#334833",
+          "#516851",
+          "#728a72",
+          "#94ad94",
+          "#b8d1b7",
+          "#ddf7dc"
+        ]
+      },
+      "overdue-clay": {
+        "role": "primary",
+        "displayName": "Overdue Clay / 逾期陶土色",
+        "tonalRamp": [
+          "#2f0000",
+          "#530000",
+          "#771c0f",
+          "#9d3f31",
+          "#c36251",
+          "#ea8573",
+          "#ffa996",
+          "#ffceba"
+        ]
+      },
+      "glass-tint": {
+        "role": "neutral",
+        "displayName": "Warm Glass Tint / 暖白玻璃覆色",
+        "tonalRamp": [
+          "#0c0b07",
+          "#262520",
+          "#43423d",
+          "#62615c",
+          "#84827d",
+          "#a6a59f",
+          "#cac9c3",
+          "#f0efe8"
+        ]
+      },
+      "selected-white": {
+        "role": "neutral",
+        "displayName": "Selected White / 选中白",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "row-hover-white": {
+        "role": "neutral",
+        "displayName": "Row Hover White / 行悬停白",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "icon-hover-shade": {
+        "role": "neutral",
+        "displayName": "Icon Hover Shade / 图标悬停灰",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "divider-ink": {
+        "role": "neutral",
+        "displayName": "Divider Ink / 分隔墨色",
+        "tonalRamp": [
+          "#0a0c0a",
+          "#232623",
+          "#404340",
+          "#5f625f",
+          "#808380",
+          "#a3a6a3",
+          "#c7cac7",
+          "#ecefec"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "compact-title": {
+        "displayName": "Compact title",
+        "purpose": "小条 to-do 标题。"
+      },
+      "body": {
+        "displayName": "Task body",
+        "purpose": "任务正文和快速录入，中文由 macOS 字体回退。"
+      },
+      "group-label": {
+        "displayName": "Group label",
+        "purpose": "分类标题。"
+      },
+      "navigation": {
+        "displayName": "Status label",
+        "purpose": "四个等宽状态；选中项 semibold。"
+      },
+      "detail": {
+        "displayName": "Task detail",
+        "purpose": "日期、分类与计数。"
+      },
+      "hint": {
+        "displayName": "Keyboard hint",
+        "purpose": "回车提示。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "native-window",
+        "value": "AppKit NSWindow.hasShadow = true",
+        "purpose": "原生窗口阴影；具体数值由系统决定，无自定义 CSS 阴影。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "idle-delay",
+        "value": "1.15s",
+        "purpose": "离开后等待再淡出；交互或图钉阻止淡出。"
+      },
+      {
+        "name": "opacity-duration",
+        "value": "0.28s",
+        "purpose": "NSAnimationContext 窗口 alpha 动画。"
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0s",
+        "purpose": "减少动态效果开启时关闭窗口动画。"
+      },
+      {
+        "name": "reduced-transparency",
+        "value": "alpha = 1",
+        "purpose": "减少透明度开启时维持清晰。"
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Status navigation",
+      "kind": "nav",
+      "refersTo": "status-tab-selected",
+      "description": "原生四状态的文档预览：等宽标签、选中底色和字重。实际交互由 SwiftUI 实现。",
+      "html": "<nav class=\"ds-status\" aria-label=\"任务状态\"><button aria-current=\"page\">To-do</button><button>Pending</button><button>Completed</button><button>Cancelled</button></nav>",
+      "css": ".ds-status{display:flex;gap:2px;width:314px;font:9.5px ui-monospace,monospace;color:rgb(43% 44% 42%)}.ds-status button{flex:1;min-width:0;border:0;border-radius:5px;padding:7px 0;background:transparent;color:inherit;font:inherit}.ds-status button[aria-current]{color:rgb(22% 23% 22%);background:rgb(100% 100% 100% / 74%);font-weight:600}.ds-status button:hover{background:rgb(100% 100% 100% / 32%)}.ds-status button:focus-visible{outline:2px solid Highlight;outline-offset:2px}.ds-status button:active{opacity:.8}"
+    },
+    {
+      "name": "Task row",
+      "kind": "custom",
+      "refersTo": "task-row",
+      "description": "方形 checkbox、可换行标题与短日期。完成/取消态另由删除线表达。",
+      "html": "<div class=\"ds-task\"><button class=\"ds-check\" aria-label=\"完成 weekly report\"><svg viewBox=\"0 0 16 16\" width=\"11\" height=\"11\" aria-hidden=\"true\"><rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" rx=\"1\" fill=\"none\" stroke=\"currentColor\"/></svg></button><button class=\"ds-task-title\">weekly report</button><time>10/30</time></div>",
+      "css": ".ds-task{display:flex;align-items:flex-start;gap:7px;width:304px;border-radius:4px;padding:3px 4px;color:rgb(22% 23% 22%);font:11px ui-monospace,monospace}.ds-task:hover{background:rgb(100% 100% 100% / 32%)}.ds-task button{border:0;background:transparent;color:inherit;font:inherit;padding:0}.ds-task .ds-check{display:grid;place-items:center;flex:none;width:13px;height:17px;color:rgb(43% 44% 42%)}.ds-task .ds-task-title{flex:1;text-align:left;line-height:1.4;padding:1px 0}.ds-task time{padding-top:3px;font-size:9px;font-variant-numeric:tabular-nums;color:rgb(43% 44% 42%)}.ds-task button:focus-visible{outline:2px solid Highlight;outline-offset:2px}.ds-task button:active{opacity:.8}"
+    },
+    {
+      "name": "Quick entry",
+      "kind": "input",
+      "refersTo": "quick-entry",
+      "description": "无边框任务输入的文档预览；回车保存、分类和日期逻辑以原生源码为准。",
+      "html": "<form class=\"ds-entry\"><div class=\"ds-entry-row\"><span aria-hidden=\"true\">+</span><input aria-label=\"添加待办\" placeholder=\"Add new todo…\"><button type=\"button\" aria-label=\"添加待办\">↵</button></div><div class=\"ds-entry-tools\"><button type=\"button\">work⌄</button><svg viewBox=\"0 0 16 16\" width=\"10\" height=\"10\" aria-label=\"截止日期\"><rect x=\"2\" y=\"3\" width=\"12\" height=\"11\" rx=\"1\" fill=\"none\" stroke=\"currentColor\"/><path d=\"M2 6h12M5 1v4M11 1v4\" fill=\"none\" stroke=\"currentColor\"/></svg><span>return ↵</span></div></form>",
+      "css": ".ds-entry{width:308px;padding:7px 18px 13px;border-top:.5px solid rgb(22% 23% 22% / 8%);color:rgb(43% 44% 42%);font:11px ui-monospace,monospace}.ds-entry-row{display:flex;align-items:center;gap:7px}.ds-entry input{min-width:0;flex:1;border:0;background:transparent;color:rgb(22% 23% 22%);font:inherit;padding:0}.ds-entry input::placeholder{color:rgb(43% 44% 42%)}.ds-entry button{background:transparent;border:0;color:inherit;font:inherit;padding:0}.ds-entry-row button{width:22px;height:24px}.ds-entry-tools{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:9px}.ds-entry-tools span{margin-left:auto;font-size:8px}.ds-entry button:hover{background:rgb(0% 0% 0% / 6%);border-radius:5px}.ds-entry input:focus-visible,.ds-entry button:focus-visible{outline:2px solid Highlight;outline-offset:3px}.ds-entry button:active{opacity:.8}"
+    },
+    {
+      "name": "Small icon button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "固定 24pt 图标按钮的文档预览。实际应用使用 SF Symbols 与原生帮助文字。",
+      "html": "<button class=\"ds-icon\" aria-label=\"保持清晰显示\" title=\"保持清晰显示\"><svg viewBox=\"0 0 16 16\" width=\"11\" height=\"11\" aria-hidden=\"true\"><path d=\"M5 2h6M6 2v4L3 9h10l-3-3V2M8 9v5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button>",
+      "css": ".ds-icon{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:transparent;color:rgb(43% 44% 42%)}.ds-icon:hover{background:rgb(0% 0% 0% / 6%)}.ds-icon:focus-visible{outline:2px solid Highlight;outline-offset:2px}.ds-icon:active{opacity:.8}"
+    },
+    {
+      "name": "Compact strip",
+      "kind": "custom",
+      "refersTo": "panel-compact",
+      "description": "原生 174 × 42pt 小条的静态文档预览；不模拟拖动与系统玻璃。",
+      "html": "<div class=\"ds-compact\"><svg viewBox=\"0 0 20 20\" width=\"20\" height=\"20\" aria-hidden=\"true\"><path d=\"m2 4 2 2 3-4M10 4h8M2 10h5M10 10h8M2 16h5M10 16h8\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\"/></svg><button aria-label=\"展开待办，共 3 项\"><strong>to-do</strong><span>3</span><span aria-hidden=\"true\">⌄</span></button></div>",
+      "css": ".ds-compact{display:flex;align-items:center;gap:9px;width:142px;height:42px;padding:0 16px;border-radius:13px;background:rgb(98% 97.5% 95% / 44%);color:rgb(22% 23% 22%);font-family:ui-monospace,monospace}.ds-compact button{display:flex;align-items:center;gap:8px;flex:1;height:100%;border:0;padding:0;background:transparent;color:inherit;font:11px ui-monospace,monospace}.ds-compact strong{font-size:12px;font-weight:500}.ds-compact button span:first-of-type{margin-left:auto;color:rgb(43% 44% 42%)}.ds-compact button span:last-child{font-size:8px}.ds-compact button:hover{color:rgb(33% 42% 33%)}.ds-compact button:focus-visible{outline:2px solid Highlight;outline-offset:2px}.ds-compact button:active{opacity:.8}"
+    },
+    {
+      "name": "Glass panel",
+      "kind": "card",
+      "refersTo": "panel-glass",
+      "description": "仅展示覆色与圆角的容器预览；实际玻璃、背景混合与窗口阴影由 AppKit 渲染，不用网页效果替代。",
+      "html": "<section class=\"ds-panel\" aria-label=\"玻璃面板覆色预览\"><div class=\"ds-panel-title\">to-do / 3</div><div class=\"ds-panel-group\">work <span>1</span></div><div class=\"ds-panel-copy\">□ weekly report</div></section>",
+      "css": ".ds-panel{width:304px;min-height:120px;padding:18px 20px;border-radius:14px;background:rgb(98% 97.5% 95% / 44%);color:rgb(22% 23% 22%);font:11px ui-monospace,monospace}.ds-panel-title{font-weight:500}.ds-panel-group{margin-top:15px;font-size:10px;font-weight:600}.ds-panel-group span{font-size:9px;font-weight:400;color:rgb(43% 44% 42%)}.ds-panel-copy{margin-top:5px;padding:3px 0}"
+    }
+  ],
+  "narrative": {
+    "northStar": "桌面旁的一张轻清单",
+    "overview": "设计来源是用户提供的小红书视频，观察依据见 [reference.md](reference.md)。方向已由用户锁定：浅暖白半透明小面板、深灰小字、四个等宽状态标签、分组与方形复选框。这里记录已完成实现的视觉系统，不将视频里的摄影比例当作原作精确尺寸，也不推定原作使用了哪一种玻璃技术。\n\n任务清单保持紧凑、安静，编辑与设置使用原生弹层和独立设置窗口。控件以熟悉的 Mac 行为完成操作，品牌感来自字距、分组节奏与克制的材质。菜单栏提供常驻入口，应用不显示 Dock 图标。",
+    "keyCharacteristics": [
+      "暖白玻璃、石墨色文字、低饱和完成态。",
+      "英文状态与分类采用系统等宽字形，中文由系统字体回退。",
+      "分组间距大于任务行间距，快速录入固定在面板底部。",
+      "默认保留完整清单；可选收成小条，图钉用于保持清晰。"
+    ],
+    "rules": [
+      {
+        "name": "The Status Rule",
+        "body": "完成与取消同时使用删除线；完成还使用选中方框。不要只凭颜色传达状态。错误提示沿用原生语义红色，不把系统动态色固化为自造色值。",
+        "section": "colors"
+      },
+      {
+        "name": "The Small-Type Rule",
+        "body": "小字服务于这张窄面板；扩展设置时沿用系统 Form 字级，不把任务清单的密度照搬到设置正文。",
+        "section": "typography"
+      },
+      {
+        "name": "The Native-Material Rule",
+        "body": "保留原生玻璃与系统阴影，不用渐变、假背景截图或额外发光模拟桌面材质。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 将用户视频视为视觉来源，并区分观察事实与实现补充。",
+      "**Do** 保持四状态等宽、任务正文可换行和底部录入固定。",
+      "**Do** 使用原生 macOS 材质、SF Symbols、系统设置与编辑控件。",
+      "**Do** 用错误提示和保留草稿支持用户修正失败的输入。",
+      "**Do** 把截图证据、源码实现与实际运行验证分别表述。"
+    ],
+    "donts": [
+      "**Don't** 声称 344 × 436pt 是原视频应用的精确尺寸。",
+      "**Don't** 把可选小条、菜单栏或 AI 桥接称为已证实的原作机制。",
+      "**Don't** 让图钉和窗口置顶共用一个含糊语义。",
+      "**Don't** 把原生动态的源码存在当成手势或透明效果已实测。"
+    ]
+  }
+}

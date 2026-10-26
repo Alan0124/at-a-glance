@@ -1,0 +1,22 @@
+# Local builds and packaged applications are distributed through GitHub Releases.
+.build/
+*.app/
+*.zip
+
+# Reproducible intermediate icon images.
+源码/Resources/AppIcon.iconset/
+源码/.impeccable/review/editor.png
+
+# macOS and editor metadata.
+.DS_Store
+._*
+*.swp
+*.xcuserstate
+
+# Local secrets and user task data must stay outside the repository.
+.env
+.env.*
+!.env.example
+tasks.json
+tasks.backup.json
+tasks.unreadable-*.json
