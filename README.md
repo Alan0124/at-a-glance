@@ -15,7 +15,7 @@
 
 ## 使用
 
-从 [Releases](https://github.com/Alan0124/at-a-glance/releases) 下载 `常在待办-Mac.zip` 并解压，双击应用。菜单栏图标左键显示或隐藏清单，右键打开设置、备份与退出菜单。
+从 [Releases](https://github.com/Alan0124/at-a-glance/releases) 下载 `At-a-Glance-Mac.zip` 并解压，双击应用。菜单栏图标左键显示或隐藏清单，右键打开设置、备份与退出菜单。
 
 当前构建适用于 Apple 芯片 Mac，最低 macOS 13。应用采用本地 ad-hoc 签名，未做 Apple 公证。
 
