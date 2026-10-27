@@ -45,14 +45,11 @@ enum TodoAutomation {
                   due.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil else {
                 throw TodoAutomationError.invalid("截止日期须为有效的 YYYY-MM-DD，例如 2026-10-28。")
             }
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.calendar = Calendar(identifier: .gregorian)
-            formatter.timeZone = .current
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.isLenient = false
-            guard let date = formatter.date(from: due), formatter.string(from: date) == due else {
+            guard CivilDay.isValid(due) else {
                 throw TodoAutomationError.invalid("截止日期不存在，请检查年月日。")
+            }
+            guard let date = CivilDay.date(from: due) else {
+                throw TodoAutomationError.invalid("当前时区不存在此日期，请选择其他截止日期。")
             }
             dueDate = date
         }

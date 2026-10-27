@@ -39,12 +39,19 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
     private var expandedSize = NSSize(width: 344, height: 436)
     private let minimumExpandedSize = NSSize(width: 300, height: 260)
     private var resizing = false
+    private let defaults: UserDefaults
+    private let screens: () -> [WindowGeometry.Screen]
     var onSettings: (() -> Void)?
     var onExport: (() -> Void)?
     var onImport: (() -> Void)?
 
-    init(store: TaskStore) {
+    init(store: TaskStore, defaults: UserDefaults = .standard,
+         screens: @escaping () -> [WindowGeometry.Screen] = {
+             NSScreen.screens.map { WindowGeometry.Screen(frame: $0.frame, visibleFrame: $0.visibleFrame) }
+         }) {
         self.store = store
+        self.defaults = defaults
+        self.screens = screens
         panel = FloatingPanel(contentRect: NSRect(origin: .zero, size: expandedSize),
                               styleMask: [.borderless, .resizable, .nonactivatingPanel, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -69,7 +76,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         container.addSubview(contentView)
         panel.contentView = container
         panel.minSize = minimumExpandedSize
-        if let frameString = UserDefaults.standard.string(forKey: "panelFrame") {
+        if let frameString = defaults.string(forKey: "panelFrame") {
             let saved = NSRectFromString(frameString)
             expandedSize = NSSize(width: max(minimumExpandedSize.width, saved.width),
                                   height: max(minimumExpandedSize.height, saved.height))
@@ -80,7 +87,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         }
         clampToScreen()
         applyPreferences()
-        observation = store.$preferences.sink { [weak self] _ in
+        observation = store.preferencesPublisher.sink { [weak self] _ in
             DispatchQueue.main.async { self?.applyPreferences() }
         }
         editObservation = store.$items.combineLatest(store.$categories).dropFirst().sink { [weak self] _ in
@@ -102,7 +109,9 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         restoreCompactOnLeave = false
         setCompact(false)
         panel.alphaValue = 1
+        #if !PANEL_TESTS
         panel.orderFrontRegardless()
+        #endif
         if focus {
             panel.makeKey()
             activeStatus = .todo
@@ -176,11 +185,12 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         let topRight = NSPoint(x: panel.frame.maxX, y: panel.frame.maxY)
         compact = value
         let size = value ? NSSize(width: 174, height: 42) : expandedSize
-        panel.minSize = value ? size : minimumExpandedSize
+        panel.minSize = .zero
         if value { panel.styleMask.remove(.resizable) }
         else { panel.styleMask.insert(.resizable) }
         panel.setFrame(NSRect(x: topRight.x - size.width, y: topRight.y - size.height,
                               width: size.width, height: size.height), display: true)
+        clampToScreen(anchor: topRight)
         resizing = false
     }
 
@@ -201,7 +211,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         let frame = NSRect(x: panel.frame.maxX - expandedSize.width,
                            y: panel.frame.maxY - expandedSize.height,
                            width: expandedSize.width, height: expandedSize.height)
-        UserDefaults.standard.set(NSStringFromRect(frame), forKey: "panelFrame")
+        defaults.set(NSStringFromRect(frame), forKey: "panelFrame")
     }
 
     func windowDidResize(_ notification: Notification) {
@@ -217,16 +227,30 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
 
     func windowDidEndLiveResize(_ notification: Notification) { setInteracting("resize", false) }
 
-    @objc private func screensChanged() { clampToScreen() }
+    @objc func screensChanged() { clampToScreen() }
     @objc private func menuOpened() { setInteracting("menu", true) }
     @objc private func menuClosed() { setInteracting("menu", false) }
-    private func clampToScreen() {
-        let frame = panel.frame
-        let screen = NSScreen.screens.first { $0.visibleFrame.intersects(frame) } ?? NSScreen.main
-        guard let visible = screen?.visibleFrame else { return }
-        panel.setFrameOrigin(NSPoint(x: max(visible.minX, min(frame.minX, visible.maxX - frame.width)),
-                                     y: max(visible.minY, min(frame.minY, visible.maxY - frame.height))))
+    private func clampToScreen(anchor: NSPoint? = nil) {
+        guard let screen = WindowGeometry.screen(for: panel.frame, anchor: anchor, screens: screens()) else { return }
+        let wasResizing = resizing
+        resizing = true
+        defer { resizing = wasResizing }
+        let visible = screen.visibleFrame
+        expandedSize = WindowGeometry.fit(NSRect(origin: .zero, size: expandedSize), in: visible,
+                                          minimum: minimumExpandedSize).size
+        panel.minSize = .zero
+        let fitted = WindowGeometry.fit(panel.frame, in: visible,
+                                        minimum: compact ? .zero : minimumExpandedSize)
+        if fitted != panel.frame { panel.setFrame(fitted, display: true) }
+        panel.minSize = compact ? fitted.size : WindowGeometry.minimum(minimumExpandedSize, in: visible)
+        // Persist the normal size even when a display changes while showing the pill.
+        let normal = WindowGeometry.fit(NSRect(x: panel.frame.maxX - expandedSize.width,
+                                               y: panel.frame.maxY - expandedSize.height,
+                                               width: expandedSize.width, height: expandedSize.height),
+                                        in: visible, minimum: minimumExpandedSize)
+        defaults.set(NSStringFromRect(normal), forKey: "panelFrame")
     }
+
 }
 
 @MainActor

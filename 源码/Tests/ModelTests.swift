@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @main
 struct ModelTests {
@@ -7,6 +8,9 @@ struct ModelTests {
         let root = fm.temporaryDirectory.appendingPathComponent("AtAGlanceTests-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: root) }
+        func tryResult(_ operation: () throws -> Bool) -> Bool {
+            do { return try operation() } catch { return false }
+        }
         var assertions = 0
         func expect(_ condition: @autoclosure () -> Bool, _ reason: String) {
             assertions += 1
@@ -21,7 +25,7 @@ struct ModelTests {
         let due = Date(timeIntervalSince1970: 1_800_000_000)
         store.add(title: "  Finish design \n", category: "work", dueDate: due)
         expect(store.items[0].title == "Finish design", "trim input")
-        expect(store.items[0].dueDate == due, "retain due date")
+        expect(store.items[0].dueDate == CivilDay.date(from: CivilDay.string(from: due)!), "retain due date")
         let first = store.items[0].id
         store.add(title: "Second", category: "work")
 
@@ -173,6 +177,15 @@ struct ModelTests {
             cleanLimits.add(title: "invalid date", category: "work", dueDate: Date(timeIntervalSinceReferenceDate: .nan))
         }
 
+        let bcDate = CivilDay.calendar().date(from: DateComponents(era: 0, year: 1, month: 1, day: 1, hour: 12))!
+        expect(CivilDay.string(from: bcDate) == nil, "BC era date cannot silently become AD deadline")
+        try unchangedAfterRejection(cleanLimits, "BC add deadline") {
+            cleanLimits.add(title: "BC deadline", category: "work", dueDate: bcDate)
+        }
+        var bcEdit = cleanLimits.items[0]
+        bcEdit.dueDate = bcDate
+        try unchangedAfterRejection(cleanLimits, "BC edit deadline") { cleanLimits.update(bcEdit) }
+
         for number in 1...95 { cleanLimits.addCategory("类别\(number)") }
         expect(cleanLimits.categories.count == 100, "100th category accepted")
         let fullCategories = TaskStore(directory: limitsDirectory, seedExamples: false)
@@ -198,6 +211,237 @@ struct ModelTests {
         expect(cleanLimits.preferences.idleOpacity == 0.15, "finite opacity remains safely clamped")
         let validPreferencesReopen = TaskStore(directory: limitsDirectory, seedExamples: false)
         expect(validPreferencesReopen.lastError == nil && validPreferencesReopen.preferences.idleOpacity == 0.15, "preferences reopen after invalid numerical inputs")
+
+        // Stable failures do not depend on running as a particular user or chmod behavior.
+        for failure in ["backup", "primary"] {
+            let subject = TaskStore(directory: root.appendingPathComponent("write-" + failure), seedExamples: false)
+            expect(subject.add(title: "durable", category: "work"), "failure fixture saved")
+            let originalItems = subject.items
+            let originalCategories = subject.categories
+            let originalPreferences = subject.preferences
+            let originalBytes = try Data(contentsOf: subject.dataFileURL)
+            let parked = subject.directory.appendingPathComponent("parked.json")
+            let obstruction = subject.directory.appendingPathComponent(failure == "backup" ? "tasks.backup.json" : "tasks.json")
+            if failure == "primary" { try fm.moveItem(at: subject.dataFileURL, to: parked) }
+            else { try? fm.removeItem(at: obstruction) }
+            try fm.createDirectory(at: obstruction, withIntermediateDirectories: false)
+            func assertFailure(_ name: String, _ action: () throws -> Bool) throws {
+                subject.lastError = nil
+                expect(tryResult(action) == false, failure + " " + name + " reports failure")
+                expect(subject.lastError != nil, failure + " " + name + " explains error")
+                expect(subject.items == originalItems && subject.categories == originalCategories && subject.preferences == originalPreferences && subject.canUndo,
+                       failure + " " + name + " leaves committed live data and history")
+                let durable = try Data(contentsOf: failure == "primary" ? parked : subject.dataFileURL)
+                expect(durable == originalBytes, failure + " " + name + " preserves durable bytes")
+            }
+            try assertFailure("add") { subject.add(title: "lost", category: "implicit") }
+            var edit = subject.items[0]; edit.title = "changed"; edit.dueDate = due
+            try assertFailure("edit") { subject.update(edit) }
+            try assertFailure("delete") { subject.delete(originalItems[0].id) }
+            try assertFailure("status") { subject.setStatus(originalItems[0].id, .completed) }
+            try assertFailure("category add") { subject.addCategory("new") }
+            try assertFailure("category rename") { subject.renameCategory("work", to: "renamed") }
+            try assertFailure("category delete") { subject.deleteCategory("work") }
+            try assertFailure("undo") { subject.undo() }
+            try assertFailure("import") { try subject.importData(from: export); return true }
+            try assertFailure("preferences") {
+                subject.preferences.alwaysOnTop.toggle()
+                return subject.preferences != originalPreferences
+            }
+            try fm.removeItem(at: obstruction)
+            if failure == "primary" { try fm.moveItem(at: parked, to: subject.dataFileURL) }
+            expect(subject.add(title: "retry", category: "life") && subject.lastError == nil, failure + " successful retry clears stale error")
+            expect(subject.undo() && subject.items == originalItems, failure + " undo successful retry")
+            expect(subject.undo() && subject.items.isEmpty && !subject.canUndo, failure + " failed actions never consumed or appended undo snapshots")
+            expect(TaskStore(directory: subject.directory, seedExamples: false).items.isEmpty, failure + " recovered state survives restart")
+        }
+        // Inject failure at the final atomic write, after the real backup write succeeds.
+        let finalWriteDirectory = root.appendingPathComponent("final-write-failure")
+        var failFinalWrite = false
+        let finalWriteStore = TaskStore(directory: finalWriteDirectory, seedExamples: false, atomicWriter: { data, url in
+            if failFinalWrite && url.lastPathComponent == "tasks.json" {
+                throw CocoaError(.fileWriteOutOfSpace)
+            }
+            try data.write(to: url, options: .atomic)
+        })
+        expect(finalWriteStore.add(title: "durable before final write", category: "work"), "final write fixture commits normally")
+        let finalWriteItems = finalWriteStore.items
+        let finalWriteCategories = finalWriteStore.categories
+        let finalWritePreferences = finalWriteStore.preferences
+        let finalWriteBytes = try Data(contentsOf: finalWriteStore.dataFileURL)
+        failFinalWrite = true
+        func assertFinalWriteFailure(_ name: String, _ action: () throws -> Bool) throws {
+            finalWriteStore.lastError = nil
+            expect(!tryResult(action) && finalWriteStore.lastError != nil, name + " final atomic write failure is reported")
+            expect(finalWriteStore.items == finalWriteItems && finalWriteStore.categories == finalWriteCategories && finalWriteStore.preferences == finalWritePreferences && finalWriteStore.canUndo,
+                   name + " final atomic write failure preserves live data and undo")
+            let unchangedMain = try Data(contentsOf: finalWriteStore.dataFileURL)
+            let completedBackup = try Data(contentsOf: finalWriteDirectory.appendingPathComponent("tasks.backup.json"))
+            expect(unchangedMain == finalWriteBytes, name + " failed final write preserves main bytes")
+            expect(completedBackup == finalWriteBytes, name + " backup already contains previously committed document")
+        }
+        try assertFinalWriteFailure("add") { finalWriteStore.add(title: "rejected", category: "new") }
+        var finalWriteEdit = finalWriteItems[0]; finalWriteEdit.title = "rejected edit"
+        try assertFinalWriteFailure("update") { finalWriteStore.update(finalWriteEdit) }
+        try assertFinalWriteFailure("import") { try finalWriteStore.importData(from: export); return true }
+        try assertFinalWriteFailure("undo") { finalWriteStore.undo() }
+        try assertFinalWriteFailure("preferences") {
+            finalWriteStore.preferences.alwaysOnTop.toggle()
+            return finalWriteStore.preferences != finalWritePreferences
+        }
+        failFinalWrite = false
+        expect(finalWriteStore.add(title: "successful retry", category: "work") && finalWriteStore.lastError == nil, "final write retry succeeds and clears stale error")
+        expect(finalWriteStore.undo() && finalWriteStore.items == finalWriteItems, "retry undo restores original committed data")
+        expect(finalWriteStore.undo() && finalWriteStore.items.isEmpty && !finalWriteStore.canUndo, "failed final writes never alter undo stack")
+        expect(TaskStore(directory: finalWriteDirectory, seedExamples: false).items.isEmpty, "recovered final write state survives restart")
+
+        let blockedDirectory = root.appendingPathComponent("blocked")
+        try Data("directory obstruction".utf8).write(to: blockedDirectory)
+        let blocked = TaskStore(directory: blockedDirectory, seedExamples: false)
+        expect(blocked.lastError != nil, "initial directory failure is visible")
+        expect(!blocked.add(title: "not saved", category: "work") && blocked.items.isEmpty && !blocked.canUndo, "blocked persistence cannot report successful add")
+        let blockedPreferences = blocked.preferences
+        blocked.preferences.alwaysOnTop.toggle()
+        expect(blocked.preferences == blockedPreferences && blocked.lastError != nil, "blocked preferences retain committed value")
+
+        // Only this test process changes its default time zone; never change system settings.
+        let originalZone = NSTimeZone.default
+        defer { NSTimeZone.default = originalZone }
+        NSTimeZone.default = TimeZone(identifier: "Asia/Shanghai")!
+        let shanghaiDeadlineInstant = CivilDay.date(from: "2026-10-28")!
+        let utcDisplayInstant = CivilDay.displayDate(from: "2026-10-28")!
+        let civil = TaskStore(directory: root.appendingPathComponent("civil"), seedExamples: false)
+        for dayString in ["2026-10-28", "2026-03-08", "2026-11-01", "2028-02-29"] {
+            expect(civil.add(title: dayString, category: "work", dueDate: CivilDay.date(from: dayString)!), "civil day added")
+        }
+        civil.add(title: "undated", category: "work")
+        let civilExport = root.appendingPathComponent("civil-export.json")
+        try civil.exportData(to: civilExport)
+        let civilRaw = try JSONSerialization.jsonObject(with: Data(contentsOf: civilExport)) as! [String: Any]
+        expect(civilRaw["version"] as? Int == 2, "writes schema v2")
+        expect((civilRaw["items"] as! [[String: Any]])[0]["dueDate"] as? String == "2026-10-28", "canonical deadline string on disk")
+        for zone in ["America/Los_Angeles", "Europe/Berlin", "Asia/Shanghai"] {
+            NSTimeZone.default = TimeZone(identifier: zone)!
+            if zone == "America/Los_Angeles" {
+                expect(CivilDay.date(from: "2026-10-28") != shanghaiDeadlineInstant, "timezone test changes actual local deadline instant")
+                expect(CivilDay.displayDate(from: "2026-10-28") == utcDisplayInstant, "UTC display adapter is timezone invariant")
+            }
+            for item in civil.items where item.title != "undated" {
+                expect(item.dueDate.flatMap(CivilDay.string) == item.title, zone + " live date retains civil day including DST")
+            }
+            let reopenedCivil = TaskStore(directory: civil.directory, seedExamples: false)
+            expect(reopenedCivil.items == civil.items, zone + " restart retains canonical data")
+            expect(reopenedCivil.items.last?.dueDate == nil, zone + " no deadline remains nil")
+            expect(reopenedCivil.sortedItems(for: .todo).map(\.title) == ["2026-03-08", "2026-10-28", "2026-11-01", "2028-02-29", "undated"], zone + " civil sorting")
+            let destination = TaskStore(directory: root.appendingPathComponent(UUID().uuidString), seedExamples: false)
+            try destination.importData(from: civilExport)
+            expect(destination.items == civil.items, zone + " cross-zone import retains days")
+            var changedDay = destination.items[0]
+            changedDay.dueDate = CivilDay.date(from: "2026-10-29")!
+            expect(destination.update(changedDay) && destination.items[0].dueDate.flatMap(CivilDay.string) == "2026-10-29", zone + " local date editor adapter")
+            expect(destination.undo() && destination.items == civil.items, zone + " deadline edit undo")
+        }
+        NSTimeZone.default = TimeZone(identifier: "Asia/Shanghai")!
+        var legacy = civilRaw
+        legacy["version"] = 1
+        var legacyItems = legacy["items"] as! [[String: Any]]
+        for index in legacyItems.indices {
+            if let dayString = legacyItems[index]["dueDate"] as? String {
+                legacyItems[index]["dueDate"] = CivilDay.date(from: dayString)!.timeIntervalSinceReferenceDate
+            }
+        }
+        legacy["items"] = legacyItems
+        let legacyBytes = try JSONSerialization.data(withJSONObject: legacy)
+        let legacyDirectory = root.appendingPathComponent("v1")
+        try fm.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        try legacyBytes.write(to: legacyDirectory.appendingPathComponent("tasks.json"))
+        let failedMigrationDirectory = root.appendingPathComponent("v1-write-failed")
+        try fm.createDirectory(at: failedMigrationDirectory, withIntermediateDirectories: true)
+        let failedMigrationFile = failedMigrationDirectory.appendingPathComponent("tasks.json")
+        try legacyBytes.write(to: failedMigrationFile)
+        let failedMigrationBackup = failedMigrationDirectory.appendingPathComponent("tasks.backup.json")
+        try fm.createDirectory(at: failedMigrationBackup, withIntermediateDirectories: false)
+        let failedMigration = TaskStore(directory: failedMigrationDirectory, seedExamples: false)
+        let failedMigrationBytes = try Data(contentsOf: failedMigrationFile)
+        expect(failedMigration.lastError != nil && failedMigrationBytes == legacyBytes, "failed migration preserves original file and reports error")
+        expect(failedMigration.items == civil.items && failedMigration.categories == civil.categories, "failed migration retains decoded tasks for viewing")
+        let failedMigrationExport = root.appendingPathComponent("failed-migration-export.json")
+        try failedMigration.exportData(to: failedMigrationExport)
+        let exportedMigration = TaskStore(directory: root.appendingPathComponent("failed-migration-import"), seedExamples: false)
+        try exportedMigration.importData(from: failedMigrationExport)
+        expect(exportedMigration.items == civil.items, "failed migration still allows lossless task export")
+        expect(!failedMigration.add(title: "blocked", category: "work") && !failedMigration.canUndo, "failed migration blocks false success and undo changes")
+        try fm.removeItem(at: failedMigrationBackup)
+        expect(TaskStore(directory: failedMigrationDirectory, seedExamples: false).items == civil.items, "migration retries safely after reopening with writable backup")
+        let migrated = TaskStore(directory: legacyDirectory, seedExamples: false)
+        expect(migrated.lastError == nil && migrated.items == civil.items, "v1 timestamps interpreted in migration Mac timezone")
+        let migrationCopy = try fm.contentsOfDirectory(at: legacyDirectory, includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("tasks.v1-") }!
+        let migrationBytes = try Data(contentsOf: migrationCopy)
+        expect(migrationBytes == legacyBytes, "migration retains byte-exact v1 original")
+        let migratedRaw = try JSONSerialization.jsonObject(with: Data(contentsOf: migrated.dataFileURL)) as! [String: Any]
+        expect(migratedRaw["version"] as? Int == 2, "migration commits v2 before publishing")
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+        expect(TaskStore(directory: legacyDirectory, seedExamples: false).items[0].dueDate.flatMap(CivilDay.string) == "2026-10-28", "migrated deadline survives timezone change")
+        for invalidDay in ["2026-02-29", "2026-13-01", "2026-04-31", "2026-1-01", "0000-01-01"] {
+            var invalidRaw = civilRaw
+            var invalidItems = invalidRaw["items"] as! [[String: Any]]
+            invalidItems[0]["dueDate"] = invalidDay; invalidRaw["items"] = invalidItems
+            try JSONSerialization.data(withJSONObject: invalidRaw).write(to: bad)
+            let beforeInvalid = civil.items
+            do { try civil.importData(from: bad); fatalError("Invalid civil date accepted") } catch {}
+            expect(civil.items == beforeInvalid && civil.lastError != nil, "invalid civil date rejected: " + invalidDay)
+        }
+        var numericV2 = civilRaw
+        var numericV2Items = numericV2["items"] as! [[String: Any]]
+        numericV2Items[0]["dueDate"] = due.timeIntervalSinceReferenceDate
+        numericV2["items"] = numericV2Items
+        try JSONSerialization.data(withJSONObject: numericV2).write(to: bad)
+        let beforeNumericV2 = civil.items
+        do { try civil.importData(from: bad); fatalError("Numeric v2 deadline accepted") } catch {}
+        expect(civil.items == beforeNumericV2 && civil.lastError != nil, "v2 rejects numeric legacy deadline without mutation")
+        NSTimeZone.default = TimeZone(identifier: "Asia/Shanghai")!
+        let skippedDayDirectory = root.appendingPathComponent("skipped-civil-day")
+        let skippedDayStore = TaskStore(directory: skippedDayDirectory, seedExamples: false)
+        skippedDayStore.add(title: "Apia skipped date", category: "work", dueDate: CivilDay.date(from: "2011-12-30")!)
+        skippedDayStore.add(title: "previous day", category: "work", dueDate: CivilDay.date(from: "2011-12-29")!)
+        skippedDayStore.add(title: "next day", category: "work", dueDate: CivilDay.date(from: "2011-12-31")!)
+        skippedDayStore.add(title: "undated", category: "work")
+        let skippedDayOriginal = skippedDayStore.items
+        NSTimeZone.default = TimeZone(identifier: "Pacific/Apia")!
+        expect(CivilDay.isValid("2011-12-30") && CivilDay.displayDate(from: "2011-12-30") != nil, "UTC canonical validation accepts civil date skipped in Apia")
+        expect(CivilDay.date(from: "2011-12-30") == nil, "local DatePicker adapter explicitly has no date for skipped local day")
+        let skippedDayReopened = TaskStore(directory: skippedDayDirectory, seedExamples: false)
+        expect(skippedDayReopened.lastError == nil && skippedDayReopened.items == skippedDayOriginal, "Apia loads all canonical data without quarantine")
+        expect(skippedDayReopened.items[0].dueDay == "2011-12-30", "Apia preserves canonical deadline even when local adapter is nil")
+        expect(skippedDayReopened.sortedItems(for: .todo).map(\.title) == ["previous day", "Apia skipped date", "next day", "undated"], "Apia sorting compares canonical days")
+        let skippedDayExport = root.appendingPathComponent("apia-export.json")
+        try skippedDayReopened.exportData(to: skippedDayExport)
+        let skippedDayImported = TaskStore(directory: root.appendingPathComponent("apia-import"), seedExamples: false)
+        try skippedDayImported.importData(from: skippedDayExport)
+        expect(skippedDayImported.items == skippedDayOriginal, "Apia export and import retain all tasks and canonical deadlines")
+        skippedDayImported.preferences.alwaysOnTop.toggle()
+        expect(skippedDayImported.lastError == nil && TaskStore(directory: skippedDayImported.directory, seedExamples: false).items == skippedDayOriginal, "Apia preference write cannot discard skipped-day task")
+        let skippedDayFiles = try fm.contentsOfDirectory(at: skippedDayDirectory, includingPropertiesForKeys: nil)
+        expect(!skippedDayFiles.contains(where: { $0.lastPathComponent.hasPrefix("tasks.unreadable-") }), "valid canonical data does not enter unreadable recovery")
+        NSTimeZone.default = TimeZone(identifier: "America/Sao_Paulo")!
+        expect(CivilDay.isValid("2018-11-04"), "midnight DST transition is a valid Gregorian date")
+        let midnightDST = CivilDay.date(from: "2018-11-04")
+        expect(midnightDST.flatMap(CivilDay.string) == "2018-11-04", "local noon adapter round trips Sao Paulo midnight DST")
+        expect(CivilDay.calendar().component(.hour, from: midnightDST!) == 12, "Sao Paulo adapter uses representable local noon")
+        for invalidGregorian in ["2011-02-29", "1900-02-29", "2026-04-31", "2026-00-10", "2026-01-00"] {
+            expect(!CivilDay.isValid(invalidGregorian), "UTC validation rejects invalid Gregorian date " + invalidGregorian)
+        }
+        let observedPreferences = TaskStore(directory: root.appendingPathComponent("preferences-publisher"), seedExamples: false)
+        var preferenceEvents: [AppPreferences] = []
+        let preferenceSubscription = observedPreferences.preferencesPublisher.sink { preferenceEvents.append($0) }
+        observedPreferences.preferences.alwaysOnTop = false
+        expect(preferenceEvents.count == 2 && preferenceEvents.last?.alwaysOnTop == false, "public publisher emits initial and successfully committed preferences")
+        try fm.removeItem(at: observedPreferences.directory.appendingPathComponent("tasks.backup.json"))
+        try fm.createDirectory(at: observedPreferences.directory.appendingPathComponent("tasks.backup.json"), withIntermediateDirectories: false)
+        observedPreferences.preferences.alwaysOnTop = true
+        expect(preferenceEvents.count == 2 && !observedPreferences.preferences.alwaysOnTop, "publisher does not expose rejected preference changes")
+        withExtendedLifetime(preferenceSubscription) {}
+        NSTimeZone.default = originalZone
 
         // Use one compact fixture rather than 100,000 disk writes to exercise task-count capacity.
         let capacityDirectory = root.appendingPathComponent("capacity")

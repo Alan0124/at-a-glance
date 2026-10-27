@@ -3,7 +3,7 @@ set -euo pipefail
 cd "${0:A:h}"
 test_binary="$(mktemp -d /tmp/ataglance-automation.XXXXXX)"
 trap 'rm -rf "$test_binary"' EXIT
-swiftc -parse-as-library Sources/Automation.swift Tests/AutomationTests.swift -o "$test_binary/automation-tests"
+swiftc -parse-as-library Sources/Models.swift Sources/Automation.swift Sources/DeadlinePresentation.swift Tests/AutomationTests.swift -o "$test_binary/automation-tests"
 "$test_binary/automation-tests"
 python3 - <<'PY'
 import pathlib

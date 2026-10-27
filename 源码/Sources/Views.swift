@@ -69,7 +69,7 @@ struct TodoPanelView: View {
         .popover(item: $editing, arrowEdge: .leading) { item in
             TaskEditor(item: item, categories: store.categories, error: store.lastError,
                        onSave: { if store.update($0) { editing = nil } },
-                       onDelete: { store.delete(item.id); editing = nil }, onCancel: { editing = nil })
+                       onDelete: { if store.delete(item.id) { editing = nil } }, onCancel: { editing = nil })
         }
     }
 
@@ -295,7 +295,10 @@ struct TaskRow: View {
     let onState: (TodoStatus) -> Void
     let onDelete: () -> Void
     @LocalState private var hovered = false
-    private var overdue: Bool { item.status != .completed && item.status != .cancelled && item.dueDate.map { Calendar.current.startOfDay(for: $0) < Calendar.current.startOfDay(for: Date()) } == true }
+    private var overdue: Bool {
+        item.status != .completed && item.status != .cancelled &&
+            item.dueDay.map { $0 < (CivilDay.string(from: Date()) ?? $0) } == true
+    }
     var body: some View {
         HStack(alignment: .top, spacing: 7) {
             Button(action: onToggle) {
@@ -313,11 +316,11 @@ struct TaskRow: View {
                     .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 1)
             }.buttonStyle(.plain).help("点击编辑；右键更改状态")
-            if let date = item.dueDate {
-                Text(date, format: .dateTime.month(.twoDigits).day(.twoDigits))
+            if let day = item.dueDay {
+                Text(DeadlinePresentation.short(day))
                     .font(.system(size: 9, design: .monospaced)).monospacedDigit()
                     .foregroundStyle(overdue ? Color(red: 0.66, green: 0.29, blue: 0.23) : PaperStyle.secondary)
-                    .padding(.top, 3).help("截止：\(date.formatted(date: .complete, time: .omitted))")
+                    .padding(.top, 3).help("截止：\(DeadlinePresentation.full(day))")
             }
         }
         .padding(.vertical, 3).padding(.horizontal, 4).padding(.leading, -4)
@@ -367,9 +370,13 @@ struct TaskEditor: View {
             Picker("状态", selection: $item.status) {
                 ForEach(TodoStatus.allCases) { Text($0.title).tag($0) }
             }
-            Toggle("设置截止日期", isOn: Binding(get: { item.dueDate != nil }, set: { item.dueDate = $0 ? Date() : nil }))
+            Toggle("设置截止日期", isOn: Binding(get: { item.dueDay != nil }, set: { item.dueDate = $0 ? Date() : nil }))
             if item.dueDate != nil {
                 DatePicker("截止日期", selection: Binding(get: { item.dueDate ?? Date() }, set: { item.dueDate = $0 }), displayedComponents: .date)
+            } else if let day = item.dueDay {
+                Text("截止日期：\(DeadlinePresentation.full(day))。当前时区没有此日期，原日期已保留。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("重新选择截止日期") { item.dueDate = Date() }
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
             HStack {
