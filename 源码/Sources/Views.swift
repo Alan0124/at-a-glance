@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 import ServiceManagement
-import UniformTypeIdentifiers
 
 // Use the established property wrapper with the command-line SDK.
 // macOS 27 also exports a same-named macro whose plugin ships with Xcode.
@@ -40,10 +39,9 @@ struct TodoPanelView: View {
     @LocalState private var draftDue: Date? = nil
     @LocalState private var showingDate = false
     @LocalState private var editing: TodoItem?
-    @LocalState private var draggedID: UUID?
     @FocusState private var inputFocused: Bool
 
-    private var visibleItems: [TodoItem] { store.items.filter { $0.status == controller.activeStatus } }
+    private var visibleItems: [TodoItem] { store.sortedItems(for: controller.activeStatus) }
     private var pendingCount: Int { store.items.filter { $0.status == .todo }.count }
 
     var body: some View {
@@ -219,8 +217,6 @@ struct TodoPanelView: View {
                         store.setStatus(item.id, item.status == .completed ? .todo : .completed)
                     }, onEdit: { editing = item }, onState: { store.setStatus(item.id, $0) },
                     onDelete: { store.delete(item.id) })
-                    .onDrag { draggedID = item.id; return NSItemProvider(object: item.id.uuidString as NSString) }
-                    .onDrop(of: [.text], delegate: TaskDropDelegate(target: item.id, draggedID: $draggedID, store: store))
                 }
             }
         }
@@ -316,7 +312,7 @@ struct TaskRow: View {
                     .foregroundStyle(item.status == .completed || item.status == .cancelled ? PaperStyle.secondary : PaperStyle.ink)
                     .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 1)
-            }.buttonStyle(.plain).help("点击编辑；拖动排序；右键更改状态")
+            }.buttonStyle(.plain).help("点击编辑；右键更改状态")
             if let date = item.dueDate {
                 Text(date, format: .dateTime.month(.twoDigits).day(.twoDigits))
                     .font(.system(size: 9, design: .monospaced)).monospacedDigit()
@@ -349,18 +345,6 @@ extension TodoStatus {
         case .completed: return "checkmark"
         case .cancelled: return "xmark"
         }
-    }
-}
-
-struct TaskDropDelegate: DropDelegate {
-    let target: UUID
-    @Binding var draggedID: UUID?
-    let store: TaskStore
-    func validateDrop(info: DropInfo) -> Bool { draggedID != nil && draggedID != target }
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-    func performDrop(info: DropInfo) -> Bool {
-        guard let source = draggedID, source != target else { return false }
-        store.move(source, before: target); draggedID = nil; return true
     }
 }
 

@@ -36,7 +36,8 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
     private var observation: AnyCancellable?
     private var editObservation: AnyCancellable?
     private var pointerTimer: Timer?
-    private let expandedSize = NSSize(width: 344, height: 436)
+    private var expandedSize = NSSize(width: 344, height: 436)
+    private let minimumExpandedSize = NSSize(width: 300, height: 260)
     private var resizing = false
     var onSettings: (() -> Void)?
     var onExport: (() -> Void)?
@@ -45,7 +46,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
     init(store: TaskStore) {
         self.store = store
         panel = FloatingPanel(contentRect: NSRect(origin: .zero, size: expandedSize),
-                              styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
+                              styleMask: [.borderless, .resizable, .nonactivatingPanel, .fullSizeContentView],
                               backing: .buffered, defer: false)
         super.init()
         panel.title = "常在待办"
@@ -59,9 +60,19 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
-        panel.contentView = NSHostingView(rootView: TodoPanelView(store: store, controller: self))
+        let container = NSView(frame: NSRect(origin: .zero, size: expandedSize))
+        let contentView = NSHostingView(rootView: TodoPanelView(store: store, controller: self))
+        // Nest the hosting view so SwiftUI cannot replace the window's resize limits.
+        contentView.sizingOptions = []
+        contentView.frame = container.bounds
+        contentView.autoresizingMask = [.width, .height]
+        container.addSubview(contentView)
+        panel.contentView = container
+        panel.minSize = minimumExpandedSize
         if let frameString = UserDefaults.standard.string(forKey: "panelFrame") {
             let saved = NSRectFromString(frameString)
+            expandedSize = NSSize(width: max(minimumExpandedSize.width, saved.width),
+                                  height: max(minimumExpandedSize.height, saved.height))
             panel.setFrame(NSRect(origin: saved.origin, size: expandedSize), display: false)
         } else if let screen = NSScreen.main {
             panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - expandedSize.width - 26,
@@ -165,6 +176,9 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         let topRight = NSPoint(x: panel.frame.maxX, y: panel.frame.maxY)
         compact = value
         let size = value ? NSSize(width: 174, height: 42) : expandedSize
+        panel.minSize = value ? size : minimumExpandedSize
+        if value { panel.styleMask.remove(.resizable) }
+        else { panel.styleMask.insert(.resizable) }
         panel.setFrame(NSRect(x: topRight.x - size.width, y: topRight.y - size.height,
                               width: size.width, height: size.height), display: true)
         resizing = false
@@ -189,6 +203,19 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
                            width: expandedSize.width, height: expandedSize.height)
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: "panelFrame")
     }
+
+    func windowDidResize(_ notification: Notification) {
+        guard !resizing, !compact else { return }
+        expandedSize = panel.frame.size
+        windowDidMove(notification)
+    }
+
+    func windowWillStartLiveResize(_ notification: Notification) {
+        didEdit()
+        setInteracting("resize", true)
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) { setInteracting("resize", false) }
 
     @objc private func screensChanged() { clampToScreen() }
     @objc private func menuOpened() { setInteracting("menu", true) }

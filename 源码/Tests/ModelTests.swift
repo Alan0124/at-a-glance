@@ -24,13 +24,30 @@ struct ModelTests {
         expect(store.items[0].dueDate == due, "retain due date")
         let first = store.items[0].id
         store.add(title: "Second", category: "work")
-        let second = store.items[1].id
-        store.move(second, before: first)
-        expect(store.items.map(\.id) == [second, first], "reorder forward")
-        store.move(second, before: first)
-        expect(store.items.map(\.id) == [second, first], "reorder adjacent stable")
-        store.move(first, before: second)
-        expect(store.items.map(\.id) == [first, second], "reorder backward")
+
+        let ordered = TaskStore(directory: root.appendingPathComponent("sorting"), seedExamples: false)
+        let day = Calendar.current.startOfDay(for: due)
+        ordered.add(title: "No date, older", category: "work")
+        ordered.add(title: "Later", category: "work", dueDate: day.addingTimeInterval(172_800))
+        ordered.add(title: "Same day, older", category: "work", dueDate: day.addingTimeInterval(64_800))
+        ordered.add(title: "Earlier", category: "work", dueDate: day.addingTimeInterval(-86_400))
+        ordered.add(title: "Same day, newer", category: "work", dueDate: day.addingTimeInterval(28_800))
+        ordered.add(title: "No date, newer", category: "work")
+        let originalOrder = ordered.items
+        expect(ordered.sortedItems(for: .todo).map(\.title) == ["Earlier", "Same day, older", "Same day, newer", "Later", "No date, older", "No date, newer"], "deadline ascending, same-day creation order, undated tasks last")
+        expect(ordered.items == originalOrder, "display sorting does not mutate stored order")
+        expect(ordered.sortedItems(for: .completed).isEmpty, "sorting respects the status filter")
+        var rescheduled = ordered.items[1]
+        rescheduled.dueDate = day.addingTimeInterval(-172_800)
+        ordered.update(rescheduled)
+        expect(ordered.sortedItems(for: .todo).first?.id == rescheduled.id, "deadline edit immediately changes display order")
+        ordered.undo()
+        expect(ordered.sortedItems(for: .todo).first?.title == "Earlier", "undo restores deadline order")
+        ordered.setStatus(rescheduled.id, .completed)
+        expect(ordered.sortedItems(for: .completed).map(\.id) == [rescheduled.id] && ordered.sortedItems(for: .todo).count == 5, "status changes keep sorted lists separate")
+        let reordered = TaskStore(directory: ordered.directory, seedExamples: false)
+        expect(reordered.sortedItems(for: .todo) == ordered.sortedItems(for: .todo), "deadline sorting survives relaunch")
+
         for status in TodoStatus.allCases {
             store.setStatus(first, status)
             expect(store.items.first(where: { $0.id == first })?.status == status, "status \(status)")

@@ -5,6 +5,9 @@ struct PanelTests {
     @MainActor static func main() throws {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
+        let savedFrame = UserDefaults.standard.object(forKey: "panelFrame")
+        UserDefaults.standard.removeObject(forKey: "panelFrame")
+        defer { UserDefaults.standard.set(savedFrame, forKey: "panelFrame") }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AtAGlancePanelTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = TaskStore(directory: directory, seedExamples: false)
@@ -12,6 +15,21 @@ struct PanelTests {
         controller.panel.orderOut(nil)
         func waitForFade() { RunLoop.main.run(until: Date().addingTimeInterval(1.5)) }
         waitForFade()
+
+        precondition(controller.panel.styleMask.contains(.resizable), "expanded panel supports native resizing")
+        precondition(controller.panel.minSize == NSSize(width: 300, height: 260), "expanded panel has a usable minimum size: \(controller.panel.minSize), content minimum: \(controller.panel.contentMinSize)")
+        let resized = NSSize(width: 480, height: 560)
+        controller.panel.setContentSize(resized)
+        precondition(controller.panel.frame.size == resized, "expanded panel accepts a custom size")
+        controller.minimizeToPill()
+        precondition(controller.panel.frame.size == NSSize(width: 174, height: 42), "custom size does not enlarge the compact pill")
+        precondition(!controller.panel.styleMask.contains(.resizable), "compact pill stays fixed in size")
+        controller.show()
+        controller.panel.orderOut(nil)
+        precondition(controller.panel.frame.size == resized && controller.panel.styleMask.contains(.resizable), "expanding restores the custom size and native resize support")
+        let restored = PanelController(store: store)
+        restored.panel.orderOut(nil)
+        precondition(restored.panel.frame.size == resized, "custom size survives controller recreation")
 
         func hoverPill() {
             controller.updatePointer(inside: false)
@@ -51,6 +69,14 @@ struct PanelTests {
         precondition(!controller.compact, "draft edits keep the panel expanded")
 
         hoverPill()
+        controller.windowWillStartLiveResize(Notification(name: NSWindow.willStartLiveResizeNotification))
+        leave()
+        precondition(!controller.compact, "live resize prevents hover collapse")
+        controller.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
+        waitForFade()
+        precondition(!controller.compact, "deliberate resizing keeps the panel expanded")
+
+        hoverPill()
         store.add(title: "Regression check", category: "work")
         leave()
         precondition(!controller.compact, "task changes keep the panel expanded")
@@ -65,6 +91,6 @@ struct PanelTests {
         store.preferences.collapseOnLeave = true
         leave()
         precondition(controller.compact, "the existing auto-collapse preference still works after edits")
-        print("PASS: hover restore, editing/menu protection, explicit open, and auto-collapse preference")
+        print("PASS: native resizing, size persistence, hover restore, editing/menu/resize protection, and auto-collapse preference")
     }
 }

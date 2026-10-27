@@ -126,6 +126,15 @@ final class TaskStore: ObservableObject {
         if !fileManager.fileExists(atPath: dataFileURL.path), lastError == nil { persist() }
     }
 
+    func sortedItems(for status: TodoStatus) -> [TodoItem] {
+        let calendar = Calendar.current
+        return items.filter { $0.status == status }.sorted {
+            let first = $0.dueDate.map { calendar.startOfDay(for: $0) } ?? .distantFuture
+            let second = $1.dueDate.map { calendar.startOfDay(for: $0) } ?? .distantFuture
+            return first == second ? $0.createdAt < $1.createdAt : first < second
+        }
+    }
+
     @discardableResult
     func add(title: String, category: String, dueDate: Date? = nil) -> Bool {
         let title = Self.trim(title)
@@ -209,18 +218,6 @@ final class TaskStore: ObservableObject {
         remember()
         categories.removeAll { $0 == name }
         for index in items.indices where items[index].category == name { items[index].category = categories[0] }
-        persist()
-    }
-
-    func move(_ id: UUID, before target: UUID) {
-        guard id != target,
-              let sourceIndex = items.firstIndex(where: { $0.id == id }),
-              let targetItem = items.first(where: { $0.id == target }),
-              items[sourceIndex].status == targetItem.status,
-              items[sourceIndex].category == targetItem.category else { return }
-        remember()
-        let item = items.remove(at: sourceIndex)
-        if let destination = items.firstIndex(where: { $0.id == target }) { items.insert(item, at: destination) }
         persist()
     }
 
