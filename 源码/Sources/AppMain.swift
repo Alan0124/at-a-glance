@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import ServiceManagement
 
+#if !PANEL_TESTS
 @main
 struct AtAGlanceMain {
     @MainActor static func main() {
@@ -13,6 +14,7 @@ struct AtAGlanceMain {
         withExtendedLifetime(delegate) { application.run() }
     }
 }
+#endif
 
 final class FloatingPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -29,8 +31,10 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
     @Published var pinned = false
     private var interactions = Set<String>()
     private var pointerInside = false
+    private var restoreCompactOnLeave = false
     private var fadeWork: DispatchWorkItem?
     private var observation: AnyCancellable?
+    private var editObservation: AnyCancellable?
     private var pointerTimer: Timer?
     private let expandedSize = NSSize(width: 344, height: 436)
     private var resizing = false
@@ -68,6 +72,9 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         observation = store.$preferences.sink { [weak self] _ in
             DispatchQueue.main.async { self?.applyPreferences() }
         }
+        editObservation = store.$items.combineLatest(store.$categories).dropFirst().sink { [weak self] _ in
+            self?.didEdit()
+        }
         pointerTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkPointer() }
         }
@@ -81,6 +88,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
 
     func show(focus: Bool = false) {
         fadeWork?.cancel()
+        restoreCompactOnLeave = false
         setCompact(false)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
@@ -103,7 +111,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
 
     func togglePin() {
         pinned.toggle()
-        if pinned { setCompact(false); panel.alphaValue = 1; fadeWork?.cancel() }
+        if pinned { restoreCompactOnLeave = false; setCompact(false); panel.alphaValue = 1; fadeWork?.cancel() }
         else { scheduleFade() }
     }
 
@@ -113,13 +121,19 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         setCompact(true)
     }
 
+    func didEdit() { restoreCompactOnLeave = false }
+
     private func checkPointer() {
         guard panel.isVisible else { return }
-        let inside = panel.frame.contains(NSEvent.mouseLocation)
+        updatePointer(inside: panel.frame.contains(NSEvent.mouseLocation))
+    }
+
+    func updatePointer(inside: Bool) {
         guard pointerInside != inside else { return }
         pointerInside = inside
         if inside {
             fadeWork?.cancel()
+            if compact { restoreCompactOnLeave = true }
             setCompact(false)
             animateOpacity(1)
         } else { scheduleFade() }
@@ -130,7 +144,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
         guard !pointerInside, !pinned, interactions.isEmpty else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.pointerInside, !self.pinned, self.interactions.isEmpty else { return }
-            if self.store.preferences.collapseOnLeave { self.setCompact(true) }
+            if self.store.preferences.collapseOnLeave || self.restoreCompactOnLeave { self.setCompact(true) }
             self.animateOpacity(self.store.preferences.idleOpacity)
         }
         fadeWork = work
@@ -146,6 +160,7 @@ final class PanelController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func setCompact(_ value: Bool) {
         guard compact != value else { return }
+        if value { restoreCompactOnLeave = false }
         resizing = true
         let topRight = NSPoint(x: panel.frame.maxX, y: panel.frame.maxY)
         compact = value

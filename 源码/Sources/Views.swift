@@ -59,6 +59,9 @@ struct TodoPanelView: View {
             if !store.categories.contains(selectedCategory) { selectedCategory = store.categories.first ?? "work" }
         }
         .onChange(of: inputFocused) { controller.setInteracting("input", $0) }
+        .onChange(of: input) { _ in controller.didEdit() }
+        .onChange(of: draftDue) { _ in controller.didEdit() }
+        .onChange(of: selectedCategory) { _ in controller.didEdit() }
         .onChange(of: controller.focusRequest) { _ in inputFocused = true }
         .onChange(of: showingDate) { controller.setInteracting("date", $0) }
         .onChange(of: editing) { controller.setInteracting("edit", $0 != nil) }
